@@ -1,0 +1,744 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+# IBM HR Analytics - Employee Attrition 
+
+*by Ankit Naik*
+========================================================
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+
+library(ggplot2)
+library(gridExtra)
+library(corrplot)
+library(ggthemes)
+
+```
+
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+df <- read.csv("~/Downloads/IBM-HR.csv")
+```
+
+## Abstract
+
+In this document I will describe how various factors affect attrition rate in
+IBM and find out factors which can help reducing attrition rate by avoiding some
+aspects which is explainatory.
+
+## Introduction
+
+IBM provides pseudo-dataset that shows key factors from which we can see 
+patterns regarding performance and attrition of an employee. This notebook will 
+focus on finding out factors which directly affects attrition rate.
+
+I will proceed to analysis with some common questions in target like -
+
+**Whether no promotion leads to attrition ?**
+
+**Whether less income leads to attrition ?**
+
+**Is the person leaves job frequently ?**
+
+and many more.
+
+## Univariate Plots
+
+Lets start by exploring the dataset by summarizing it - 
+
+```{r echo=FALSE, Univariate_Plots}
+
+str(df)
+
+```
+
+Dropping Standard Hours and Employee count from dataframe as its un-necessary
+fot our analysis.
+
+```{r}
+df$StandardHours <- NULL
+df$EmployeeCount <- NULL
+```
+
+
+Checking if there are any missing values in dataset by checking dimension - 
+
+```{r echo=FALSE}
+dim(df)
+```
+
+Since dimension is same as the values in summary **there are no missing values**. 
+Hence we can continue with our exploration.
+
+Lets explore demographics of our datset like Age,Gender,Attrition and Distance 
+From Home
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+p1 <- ggplot(aes(x = Age),data = df) + geom_bar(binwidth = 5) + 
+  ggtitle("Age Distribution")
+
+p2 <- ggplot(aes(x = Gender),data = df) + geom_bar() + 
+  ggtitle("Gender Distribution")
+
+p3 <- ggplot(aes(x = Attrition) , data = df) + geom_bar()+ 
+  ggtitle("Attrition Distribution")
+
+p4 <- ggplot(aes(x = DistanceFromHome) , data = df) + geom_bar()+
+  ggtitle("DistanceFromHome Distribution") + scale_y_log10()
+
+
+grid.arrange(p1,p2,p3,p4, ncol = 2)
+
+```
+
+*Distribution of Age* - Age is normally distributed with mean age around 35 and 
+minimum age being 18 and maximum bieng 60 (Retirement). This suggests there are
+no unusual data in dataset.
+
+Lets summarise this feature to explain findings - 
+
+```{r echo=FALSE}
+summary(df$Age)
+```
+
+
+*Distribution of Gender* - Female are less than Male which is not unusual in 
+workplace. While comparing something wrt Gender we need to take care of this.
+
+Lets summarise this feature to explain findings - 
+
+```{r echo=FALSE}
+summary(df$Gender)
+```
+
+*Distribution of Attrition* - This is also normal since attrition is always very
+less in a well established company.
+
+Lets summarise this feature to explain findings - 
+
+```{r echo=FALSE}
+summary(df$Attrition)
+```
+
+*Distribution of Distance From Home* - This data is interesting to look as this 
+follows common idea of living near the office. Interesting part will be
+If someone leaves company due to this factor.
+
+Lets summarise this feature to explain findings - 
+
+```{r echo=FALSE}
+summary(df$DistanceFromHome)
+```
+
+
+Additionally lets explore some more features - 
+
+```{r echo=FALSE}
+p33 <- ggplot(aes(x = BusinessTravel),data = df) + geom_bar() + 
+  ggtitle("Travel Distribution")
+
+p34 <- ggplot(aes(x = JobLevel),data = df) + geom_bar() + 
+  ggtitle("Job Level Distribution")
+
+p35 <- ggplot(aes(x = TotalWorkingYears) , data = df) + geom_bar()+ 
+  ggtitle("Experience Distribution") + scale_y_log10()
+
+p36 <- ggplot(aes(x = MonthlyIncome) , data = df) + geom_histogram()+
+  ggtitle("Income Distribution")
+
+
+grid.arrange(p33,p34,p35,p36, ncol = 2)
+```
+
+*Distribution of Travel* - Graph suggests most of the employee are from travel
+rarely job type. This will be a good feature to see attrition rate.
+
+Lets summarise this feature to explain findings - 
+
+```{r echo=FALSE}
+summary(df$BusinessTravel)
+```
+
+*Distrubution of Job Level* - Dataset contains more people from lower level job
+which is normal hence not many people are present in higher level job.
+
+Lets summarise this feature to explain findings - 
+
+```{r echo=FALSE}
+summary(df$JobLevel)
+```
+
+*Distribution of Experience* - Similar to job level low experience employee are 
+more because of the same reason explained above.
+
+Lets summarise this feature to explain findings - 
+
+```{r echo=FALSE}
+summary(df$TotalWorkingYears)
+```
+*Distribution of Income* - This is also related to age,experience and job level 
+hence same pattern can be observed here.
+
+Lets summarise this feature to explain findings - 
+
+```{r echo=FALSE}
+summary(df$MonthlyIncome)
+```
+
+All this relation can be explored from correlation plot which I will be doing
+in bivariate plot section.
+
+
+
+## Univariate Analysis
+
+##### What is the structure of dataset?
+
+The dataset includes all details of employee with some factor variables like
+Attrition,Business Travel,Department,etc. Others are Integer like distance from 
+home, Monthly Income, etc. There are no other datatypes and no missing values.
+
+##### What is/are the main feature(s) of interest in dataset?
+
+Some interesting variables that definitely will help in finding out factors 
+affecting attrition are one and foremost Attrition, others are Age, Business 
+Travel, Distance From Home, Monthly Income, Overtime and Work-Life Balance
+
+##### What other features in the dataset do you think will help support your \
+investigation into your feature(s) of interest?
+
+Features like time since last promotion, Companies worked, Gender and Maritial 
+Status will help exploring in deep.
+
+# Bivariate Plots Section
+
+Before starting bivariate plots, lets compare correlation between various 
+components such that we can reduce unnecessary comparision between related 
+components and focus on important variables.
+
+```{r echo=FALSE, Bivariate_Plots}
+
+nums <- sapply(df, is.numeric)
+
+int_data <- df[,nums]
+int_attrition <- as.numeric(df$Attrition) - 1 
+int_data <- cbind(int_data,int_attrition)
+
+m1 <- cor(int_data)
+
+corrplot(m1,method = 'circle',tl.cex = 0.5,type = "upper",diag=FALSE,
+                                              title = "Correlation Plot") 
+```
+
+From above correlation graph we can deduce that following data are strongly 
+correlated (Dark blue color represents high correlatoion)-
+
+**1. Age ~ JobLevel ~ MonthlyIncome ~ TotalWorkingYears ~ YearsAtCompany** - 
+
+This makes sense as age increases Salary, Job Level and Monthly Income
+increases. Lets use scatter plot to plot all these variables to look in detail.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+p5 <- ggplot(aes(x = JobLevel , y = Age) , data = df) +
+  geom_jitter(alpha = 0.3) +
+  ggtitle("Joblevel V/S Age")
+
+p6 <- ggplot(aes(x = MonthlyIncome , y = Age) , data = df) +
+  geom_jitter(alpha = 0.5) +
+  ggtitle("MonthlyIncome V/S Age") + 
+  xlab("Monthly Income (in Dollars)")
+
+p7 <- ggplot(aes(x = TotalWorkingYears , y = Age) , data = df) + 
+  geom_jitter(alpha = 0.5) +
+  ggtitle("TotalWorkingYears V/S Age")
+
+p <- ggplot(aes(x = YearsAtCompany , y = Age) , data = df) + 
+  geom_jitter(alpha = 0.5) + 
+  ggtitle("YearsAtCompany V/S Age")
+
+grid.arrange(p5,p6,p7,p,ncol=2)
+
+```
+
+As from the graph we can see all these features increases as age increase.
+
+**2. JobLevel ~ YearsAtCompany ~ TotalWorkingYears**
+
+This is interesting relation, as job level increases people remain in the same
+company. Lets see with scatter plot
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+p8 <- ggplot(aes(x = JobLevel , y = YearsAtCompany) , data=df) + 
+  geom_jitter(alpha = 0.3)+ 
+  ggtitle("JobLevel V/S YearsAtCompany")
+p9 <- ggplot(aes(x = JobLevel , y = TotalWorkingYears) , data=df) + 
+  geom_jitter(alpha = 0.3) + 
+  ggtitle("JobLevel V/S TotalWorkingYears")
+
+grid.arrange(p8,p9 , ncol = 2)
+
+```
+
+One strange finding here is job level is not so dependent factor with Years
+at company as compared to total working years. People working in same companies
+has different level with same age while this is not true for total experience.
+
+**3. PercentSalaryHike ~ PerformanceRating**
+
+As performance rating improves hike is imminent, this relationship can be seen 
+here as increase in rating gives more hike.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = PerformanceRating , y = PercentSalaryHike) , data=df) + 
+  geom_jitter(alpha = 0.5) + ggtitle("Rating V/S Hike") 
+
+```
+
+Since dataset contains only rating of 3 and 4. We can easily conclude people 
+with rating 3-3.5 get less than 20% hike and people with rating 3.5-4 get more 
+than 20% hike.
+
+**4. YearsAtCompany ~ YearsInCurrentRole ~ YearsSinceLastPromotion ~ YearsWithCurrManager**
+
+This has shown some interesting relation like years at company and promotion.
+With increase in experience at same company primoition does not happen as usual 
+and role is also not getting changed frequently. These two factor contribute to 
+longer time with current manager.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+p11 <- ggplot(aes(x = YearsInCurrentRole , y = YearsAtCompany) , data=df) +
+  geom_jitter(alpha = 0.2)
+p12 <- ggplot(aes(x = YearsSinceLastPromotion , y = YearsAtCompany) , data=df) + 
+  geom_jitter(alpha = 0.2)
+p13 <- ggplot(aes(x = YearsWithCurrManager , y = YearsAtCompany) , data=df) + 
+  geom_jitter(alpha = 0.2)
+
+grid.arrange(p11,p12,p13,ncol =3)
+```
+
+
+Now after exploring relationships with dataset we can start with our posed 
+question. **Which factors attrition depends on?**
+
+As there is no direct relation of attrition with other values lets start looking
+into factors one by one-
+
+
+##### Attrition based on Age
+
+Age is one of the major factor attrition depends on. Young people tends to switch
+more job than older people. Lets explore the pattern. From here on I will be 
+producing plots in proportion. Proportion will be comparable to actual variable 
+and attrition at that variable.
+
+Plotting histogram of Age will answer most of the questions since age is related
+to numerous factors in dataset.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(aes(x=Age,..count.., fill = Attrition) ,  data = df) + 
+  geom_bar(position = "fill") +
+  scale_fill_excel() + theme_excel() + 
+  scale_x_continuous(breaks = seq(18,62,2)) + ylab("Mean") +
+  ggtitle("Distribution of attrition year by year")
+
+```
+From the graph above it is clear that people who joined company at young age 
+tend to leave the company either for higher education or for other company.
+The pattern reduces over time and after 50 years it starts increasing again 
+due to factors like retirement.
+
+Since age and total working years are related we can see the same pattern here. 
+With start of career attrition is more and it reduces afterwards. At age near to 
+retirement around 40 Attrition rate increases exponentially. Same goes for 
+JobLevel and Monthly Income.
+
+Lets plot some more variable based on attrition
+
+##### Attrition based on Business Travel and Year in Current Role
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+p14 <- ggplot(aes(x = BusinessTravel,..count.. ),data = df) + 
+  geom_bar(aes(fill=Attrition),position = "fill") + 
+  scale_fill_excel() + theme_excel() + 
+  ylab("Mean") +  
+  theme(axis.text.x = element_text(size  = 10, angle = 45,hjust = 1,vjust = 1))
+
+p17 <- ggplot(aes(x = YearsInCurrentRole,..count.. ),data = df) + 
+  geom_bar(aes(fill=Attrition),position = "fill") + 
+  scale_fill_excel() + theme_excel() + 
+  ylab("Mean")
+
+
+grid.arrange(p14,p17,ncol = 2)
+```
+
+As expected people who have to travel frequently has higher attrition.
+
+Same trend is followed in Years at company initial attrition is higher and after
+23 years attrition rate begins to increase. Which can amount to people taking 
+retirement.
+
+Years in current role which may change after promotion usually shows either 
+people leave just after getting promoted or they leave because they are not 
+getting new role. But pattern is non explainatory
+
+##### Attrition based on Year Since last Promotion,Work-Life Balance,Stock\ 
+Option Level and Percent Salary Hike
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+p18 <- ggplot(aes(x = YearsSinceLastPromotion,..count.. ),data = df) + 
+  geom_bar(aes(fill=Attrition),position = "fill") + 
+  scale_fill_excel() + theme_excel() +  
+  ylab("Mean")
+
+p19 <- ggplot(aes(x = WorkLifeBalance,..count.. ),data = df) + 
+  geom_bar(aes(fill=Attrition),position = "fill") + 
+  scale_fill_excel() + theme_excel() +  
+  ylab("Mean")
+
+p20 <- ggplot(aes(x = StockOptionLevel,..count.. ),data = df) + 
+  geom_bar(aes(fill=Attrition),position = "fill") + 
+  scale_fill_excel() + theme_excel() +  
+  ylab("Mean")
+
+p21 <- ggplot(aes(x = PercentSalaryHike,..count.. ),data = df) +
+  geom_bar(aes(fill=Attrition),position = "fill") + 
+  scale_fill_excel() + theme_excel() + 
+  ylab("Mean")
+
+
+grid.arrange(p18,p19,p20,p21,ncol = 2)
+```
+
+Popular opinion will suggest that years since last promotion matters for 
+attrition but based on our data its hard to deduce that not getting promoted is 
+reason for attrition. Also IBM employee hierarchy is different then other 
+companies which has fewer job profile hence less promotion but pay increases
+overtime.
+
+Work-Life balance is a factor in attrition as people reporting low work-life 
+balance have very high attrition compared to others. Same goes for stock option 
+level, lower level leave and higher level attrition can be due to people retiring 
+
+Again percent salary hike shows that people getting more hike leave after the 
+hike. Which is true as other companies will try to match up the salary given in 
+the previos job. But difference is not large enough to conclude this.
+
+##### Attrition based on Overtime,No. of companies Worked,Maritial Status and Job Satisfaction
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+p22 <- ggplot(aes(x = OverTime,..count.. ),data = df) + 
+  geom_bar(aes(fill=Attrition),position = "fill") + 
+  scale_fill_excel() + theme_excel() +  
+  ylab("Mean")
+
+p23 <- ggplot(aes(x = NumCompaniesWorked,..count.. ),data = df) + 
+  geom_bar(aes(fill=Attrition),position = "fill",binwidth = 2)+
+  scale_fill_excel() + theme_excel() + 
+  ylab("Mean")
+
+p24 <- ggplot(aes(x = MaritalStatus,..count.. ),data = df) + 
+  geom_bar(aes(fill=Attrition),position = "fill")+
+  scale_fill_excel() + theme_excel() + 
+  ylab("Mean")
+
+p25 <- ggplot(aes(x = JobSatisfaction,..count.. ),data = df) + 
+  geom_bar(aes(fill=Attrition),position = "fill")+
+  scale_fill_excel() + theme_excel() + 
+  ylab("Mean")
+
+grid.arrange(p22,p23,p24,p25,ncol = 2)
+```
+
+As its clear that overtime does have an affect on attrition as people doing 
+overtime tends to leave company.
+
+Interestingly people worked with more than 5 companies does have more attrition 
+than others. But pattern is not clear hence we cannot conclude.
+
+As expected people with MaritialStatus single has more attrition as after getting
+married leaving job is very rare since supporting family is an issue.
+
+Job satisfaction is also an issue as people with low job satisfaction leave the 
+job.
+
+##### Attrition based on Job Involvement,Environment Satisfaction,EducationField\
+and Education
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+p26 <- ggplot(aes(x = JobInvolvement,..count.. ),data = df) + 
+  geom_bar(aes(fill=Attrition),position = "fill") +
+  scale_fill_excel() + theme_excel() +  
+  ylab("Mean")
+
+p27 <- ggplot(aes(x = EnvironmentSatisfaction,..count.. ),data = df) + 
+  geom_bar(aes(fill=Attrition),position = "fill")+
+  scale_fill_excel() + theme_excel() +  
+  ylab("Mean")
+
+p28 <- ggplot(aes(x = EducationField,..count.. ),data = df) + 
+  geom_bar(aes(fill=Attrition),position = "fill")+
+  scale_fill_excel() + theme_excel() +  
+  ylab("Mean")+
+  theme(axis.text.x = element_text(size  = 10, angle = 45,hjust = 1,vjust = 1))
+
+p29 <- ggplot(aes(x = Education,..count.. ),data = df) + 
+  geom_bar(aes(fill=Attrition),position = "fill")+
+  scale_fill_excel() + theme_excel() +
+  ylab("Mean")
+
+grid.arrange(p26,p27,p28,p29,ncol = 2)
+```
+
+Again job envolvement and environment satisfaction is directly affecting 
+attrition.
+
+HR, Marketing and Technical Degree does have more attrition than any other field.
+
+Attrition does not depend much on Education but we can say that people with 
+highest level of education have low attrition.
+
+##### Attrition based on Distance From Home and Department
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+p30 <- ggplot(aes(x = DistanceFromHome,..count.. ),data = df) + 
+  geom_bar(aes(fill=Attrition),position = "fill") +
+  scale_fill_excel() + theme_excel() +  
+  ylab("Mean") 
+
+p31 <- ggplot(aes(x = Department,..count.. ),data = df) + 
+  geom_bar(aes(fill=Attrition),position = "fill")+
+  scale_fill_excel() + theme_excel() +  
+  ylab("Mean")+
+  theme(axis.text.x = element_text(size  = 10, angle = 45,hjust = 1,vjust = 1))
+
+grid.arrange(p30,p31,ncol = 2)
+```
+
+Distance from home may not look like a factor for attrition but people living 
+in larger distance from office does have more attrition.
+
+It may look like department effects attrition but there are no clear 
+patterns to conclude that.
+
+# Bivariate Analysis
+
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. How did the feature(s) of interest vary with other features in \
+the dataset?
+
+Most interesting feature was age, its directly related to other features and 
+exploring only age answered most of the questions like less income, job level
+and new joinee has more attrition than others.
+
+Other feature which was good to look at was Overtime. Attrition rate for employee
+having overtime was much more compared to other employee.
+
+### Did you observe any interesting relationships between the other features \
+(not the main feature(s) of interest)?
+
+Relationship between Years at company and Last promotion was interesting as 
+More years at company promotion was not happening as usual. Which is contarary
+to popular belief. Also role was not getting changed.
+
+
+### What was the strongest relationship you found?
+
+Strongest relationship was between Age an Monthly Income. As age increased, 
+income of an individual increases. 
+
+
+# Multivariate Plots Section
+
+
+##### Attrition based on Travel and Age
+
+Idea of this multivariate plot was to see if increase in age and travel are
+related factor for attrition. Lets see with plot
+
+
+```{r echo=FALSE, Multivariate_Plots}
+
+ggplot(aes(x = BusinessTravel  , y = Age) , data = df) + 
+  geom_jitter(aes(color=Attrition),alpha = 0.8) +  
+  scale_fill_excel() + theme_dark() + 
+  ggtitle("Comparision of Business Travel and Age based on attrition")
+
+```
+
+Although attrition in non-travel job type is very low but above age 40 attrition
+is almost nill. While other travel type still sees some attrition. Another 
+conclusion we can give is for travel-frequently below age 25 attrition is almost
+100%.
+
+##### Attrition based on Business Travel and Maritial Status
+
+Two feature that I wanted to see that if someone is married and there is travel 
+required. Will people leave the job. Lets look at plot
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = BusinessTravel  , y = MaritalStatus) , data = df) + 
+  geom_jitter(aes(color=Attrition),alpha = 0.8) + 
+  scale_fill_excel() + theme_dark() +  
+  ggtitle("Comparision of Business Travel and Maritial Status based on attrition")
+```
+
+After looking at plot we can definitely say there are no clear pattern visible 
+here. Hence there is no effect of this reason on attrition.
+
+##### Attrition based on Distance and Age with Maritial Status
+
+Since distance and age can be a factor on leaving job as people get tired 
+travelling also adding to factor is if someone has a family. Lets look at plot.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = DistanceFromHome  , y = Age) , data = df) + 
+  facet_grid(~ MaritalStatus) +
+  geom_jitter(aes(color=Attrition),alpha = 0.8) + 
+  scale_fill_excel() + theme_dark() + 
+  ggtitle("Comparision of Distance from home, age and Maritial Status based on 
+          attrition")
+```
+
+Here also there are no clear pattern hence assumption is false.
+
+##### Attrition based on Travel and Gender
+
+Gender based analysis can give some clear result about weather gender is a 
+factor on attrition due to travel.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = BusinessTravel  , y = Gender) , data = df) + 
+  geom_jitter(aes(color=Attrition),alpha = 0.8) + 
+  scale_fill_excel() + theme_dark() + 
+  ggtitle("Comparision of Gender and Business Travel based on Attrition ")
+```
+
+Here also we can see gender is not that big factor as there is no clear pattern.
+
+##### Attrition based on Distance,Gender and Maritial Status
+
+
+Adding one more variable Marritial Status for above plot. Lets explore,
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = Gender  , y = DistanceFromHome) , data = df) + 
+  facet_grid(~MaritalStatus) + 
+  geom_jitter(aes(color=df$Attrition),alpha = 0.8) + 
+  scale_fill_excel() + theme_dark() + 
+  ggtitle("Comparision of Distance from home and Gender based on attrition")
+```
+
+Here we can see some pattern that Married people has more attrition at larger
+distance compare to single and divorced.
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. Were there features that strengthened each other in terms of \
+looking at your feature(s) of interest?
+
+One definitive relation was Business Travel does play role in attrition as 
+Travel Frequently has more attrition at age less than 25 and Non travel job
+has almost no attrition after age 40. While there is no effect of travel rarely
+job on attrition.
+
+Other relationship was married people have more attrition when distance from home
+is large compare to other.
+
+### Were there any interesting or surprising interactions between features?
+
+Surprising interaction is Gender plays no role in attrition when compared to
+any of the feature in dataset. While popular opinion suggests otherwise.
+
+------
+
+# Final Plots and Summary
+
+
+### Plot One
+
+
+
+```{r echo=FALSE, Plot_One}
+ggplot(aes(x = TotalWorkingYears) , data = df) + geom_bar()+ 
+  ggtitle("Experience Distribution") + scale_y_log10()
+```
+
+### Description One
+
+Reason behind including this plot in summary was the increasing pattern of 
+experience till 10 years and reducing after that which suggests most of the
+employee start retiring after working 10 years and 40 is the max limit which is
+Retirement age.
+
+### Plot Two
+```{r echo=FALSE, Plot_Two}
+ggplot(aes(x = Age,..count.. ),data = df) + 
+    geom_bar(aes(fill=Attrition),position = "fill") +  
+    scale_fill_excel() + theme_excel() + 
+    ggtitle("Distribution of attrition year by year based on age")
+```
+
+
+### Description Two
+
+Age is one of the feature which related to several other features hence we were
+able to directly deduce feature like Monthly Income, years at company , etc has
+its effect in attrition in same pattern related to age.
+
+### Plot Three
+```{r echo=FALSE, Plot_Three}
+ggplot(aes(x = BusinessTravel  , y = Age) , data = df) + 
+    geom_jitter(aes(color=Attrition),alpha = 0.8) +  scale_fill_excel() + 
+    theme_dark() + 
+    ggtitle("Comparision of Business Travel and Age for Attrition")
+```
+
+### Description Three
+
+Although data points were not equal but from this plot we were able to see that
+in Non-Travel job people with age more than 40 had more attrition. Simmilarly 
+people travelling frequently had allot of attrition below age 30(almost 80%).
+
+------
+
+# Reflection
+
+Whole analysis was based on finding out which factors affect Attrition. Based
+on analysis following factors came up -
+
+######1. Age - Initital Years,
+######2. Job Level - Low Job Level
+######3. Monthly Income - Low Income
+######4. Working Years - Less Working Years
+######5. Business Travel - More travel
+######6. Stock Option - Low level
+######7. Overtime - Yes
+######8. Maritial Status - Single
+######9. Job Satisfaction - Low
+######10. Job Involvement - Low
+######11. Environment Satisfaction - Low
+######12. Distance From Home - Large
+######13. Department - Sales and HR
+######14. Travel Frequency - Frequent and Married
+
+One of the problem faced with dataset is its not given what was the reason 
+attrition has happened. Including it will make the analysis more exciting.
+Also dataset is not enough to conclude some of the things.
+
+Surprisingly attrition is happening for the same reason as percieved. But the
+finding that attrition is not related to promotion was great finding in the 
+analysis..
+
+Future work on this can be to provide a model where we can give details how to 
+reduce attrition by avoiding some factors.
+
